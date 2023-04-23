@@ -1,22 +1,31 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
-const Header = () => {
+function Header() {
   return (
     <header className="bg-dark-gray text-dark-orange p-4">
-      <h1 className="text-xl font-bold">Your Name</h1>
       <nav>
-        <a className="mx-2 hover:text-white" href="#about">
+        <Link to="/" className="mr-4">
+          Home
+        </Link>
+        <Link to="/interactive-projects" className="mr-4">
+          Interactive Projects (Python)
+        </Link>
+        <Link to="/dynamic-blog" className="mr-4">
+          Dynamic Blog (Go)
+        </Link>
+        <Link to="/api-playground" className="mr-4">
+          API Playground (Rust)
+        </Link>
+        <Link to="/about" className="mr-4">
           About
-        </a>
-        <a className="mx-2 hover:text-white" href="#projects">
-          Projects
-        </a>
-        <a className="mx-2 hover:text-white" href="#contact">
+        </Link>
+        <Link to="/contact" className="mr-4">
           Contact
-        </a>
+        </Link>
       </nav>
     </header>
   );
-};
+}
 
 export default Header;
