@@ -3,7 +3,7 @@ import CustomTypewriter from './customTypewriter';
 
 const Hero: React.FC = () => {
   return (
-    <div className="bg-darkGray h-screen flex flex-col justify-start items-center pt-10 md:pt-30 lg:pt-40">
+    <div className="bg-darkGray h-auto flex flex-col justify-start items-center py-20 md:py-32 lg:py-40 mb-32">
       <h1 className="text-3xl md:text-4xl lg:text-6xl xl:text-8xl font-bold mb-4 text-dark-orange">
         Maximilian Huber
       </h1>
