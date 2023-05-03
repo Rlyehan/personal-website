@@ -16,7 +16,7 @@ const skillData = {
   ],
   backendDeveloper: [
     { skill: 'Python', percentage: 80 },
-    { skill: 'Typrscript', percentage: 70 },
+    { skill: 'Typescript', percentage: 70 },
     { skill: 'Go', percentage: 60 },
     { skill: 'SQL Databases', percentage: 50 },
     { skill: 'NoSQL Databases', percentage: 40 },
@@ -44,30 +44,30 @@ const SkillProgressTabs: React.FC = () => {
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-center mb-8 py-8">
         <button
-          className={`px-4 py-2 font-semibold text-sm ${
+          className={`px-4 py-2 font-semibold text-m ${
             activeTab === 'dataEngineer'
-              ? 'bg-darkGray text-darkOrange'
-              : 'text-gray-300 hover:text-darkOrange hover:bg-gray-800'
+              ? 'bg-darkGray text-dark-orange'
+              : 'text-gray-300 hover:bg-gray-800'
           }`}
           onClick={() => setActiveTab('dataEngineer')}
         >
           Data Engineer
         </button>
         <button
-          className={`px-4 py-2 font-semibold text-sm ${
+          className={`px-4 py-2 font-semibold text-m ${
             activeTab === 'backendDeveloper'
-              ? 'bg-darkGray text-darkOrange'
-              : 'text-gray-300 hover:text-darkOrange hover:bg-gray-800'
+              ? 'bg-darkGray text-dark-orange'
+              : 'text-gray-300 hover:bg-gray-800'
           }`}
           onClick={() => setActiveTab('backendDeveloper')}
         >
           Backend Developer
         </button>
         <button
-          className={`px-4 py-2 font-semibold text-sm ${
+          className={`px-4 py-2 font-semibold text-m ${
             activeTab === 'devopsEngineer'
-              ? 'bg-darkGray text-darkOrange'
-              : 'text-gray-300 hover:text-darkOrange hover:bg-gray-800'
+              ? 'bg-darkGray text-dark-orange'
+              : 'text-gray-300 hover:bg-gray-800'
           }`}
           onClick={() => setActiveTab('devopsEngineer')}
         >

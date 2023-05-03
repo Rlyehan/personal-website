@@ -12,9 +12,9 @@ const SkillProgressBar: React.FC<SkillProgressBarProps> = ({
   isFirst,
 }) => {
   return (
-    <div className="my-4 w-3/4 mx-auto">
+    <div className="my-4 w-full md:w-3/4 mx-auto">
       <div className="flex justify-between items-center mb-1">
-        <span className="text-white font-semibold text-lg w-1/5 pr-4">
+        <span className="text-white font-semibold text-lg w-1/5 pr-4 flex items-center">
           {skill}
         </span>
         <div className="relative w-4/5">
@@ -36,7 +36,9 @@ const SkillProgressBar: React.FC<SkillProgressBarProps> = ({
               </div>
             </>
           )}
-          <div className={`w-full h-6 rounded-lg bg-gray-800 mb-4 relative`}>
+          <div
+            className={`w-full h-3 md:h-6 rounded-lg bg-gray-800 mb-4 relative`}
+          >
             <div
               className={`h-full rounded-lg transition-all duration-500`}
               style={{
