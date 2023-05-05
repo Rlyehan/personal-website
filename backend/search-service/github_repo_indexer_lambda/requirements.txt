@@ -2,4 +2,4 @@ opensearch-py
 requests
 sentence-transformers
 boto3
-requests-aws4auth
+hnswlib
