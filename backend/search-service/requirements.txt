@@ -2,3 +2,4 @@ opensearch-py
 fastapi
 sentence-transformers
 hnswlib
+httpx
