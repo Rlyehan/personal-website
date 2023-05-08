@@ -1,5 +1,4 @@
 opensearch-py
-requests
+fastapi
 sentence-transformers
-boto3
 hnswlib

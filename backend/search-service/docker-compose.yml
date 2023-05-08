@@ -1,6 +1,18 @@
-version: '3'
+version: '3.8'
 services:
-  opensearch-node1:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    expose:
+      - 80
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fastapi.rule=Host(`localhost`)"
+      - "traefik.http.routers.fastapi.entrypoints=web"
+    depends_on:
+      - opensearch-node
+  opensearch-node:
     image: opensearchproject/opensearch:latest
     container_name: opensearch-node1
     environment:
@@ -34,10 +46,21 @@ services:
     expose:
       - "5601"
     environment:
-      - 'OPENSEARCH_HOSTS=["http://opensearch-node1:9200"]'
+      - 'OPENSEARCH_HOSTS=["http://opensearch-node:9200"]'
       - "DISABLE_SECURITY_DASHBOARDS_PLUGIN=true"
     networks:
       - opensearch-net
+  traefik:
+    image: traefik:latest
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - 80:80
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 
 volumes:
   opensearch-data1:
