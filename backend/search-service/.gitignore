@@ -2,3 +2,4 @@ venv/
 secrets.sh
 __pycache__/
 .env
+hnsw_index
