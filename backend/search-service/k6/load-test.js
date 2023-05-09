@@ -33,7 +33,7 @@ export let options = {
 
 export function getEndpoint() {
   group('GET requests', () => {
-    const getResponse = http.get('http://localhost/repositories');
+    const getResponse = http.get('http://localhost:8000/repositories');
     const isGetReqSuccessful = check(getResponse, {
       'Get request status is 200': (r) => r.status === 200,
     });
@@ -57,7 +57,7 @@ export function postEndpoint() {
       },
     };
 
-    const postResponse = http.post('http://localhost/search', payload, params);
+    const postResponse = http.post('http://localhost:8000/search', payload, params);
     const isPostReqSuccessful = check(postResponse, {
       'Post request status is 200': (r) => r.status === 200,
     });
