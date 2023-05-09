@@ -1,4 +1,5 @@
 import base64
+import logging
 import os
 from typing import List, Tuple
 
@@ -6,24 +7,72 @@ import hnswlib
 import httpx
 import numpy as np
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from opensearchpy import OpenSearch
 from opensearchpy.exceptions import RequestError
+from opentelemetry import trace
+from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from prometheus_client import Counter
+from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 
 GITHUB_USERNAME = os.environ["GITHUB_USERNAME"]
 GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
 
+INDEX_NAME = "repositories"
+HNSW_INDEX_NAME = "hnsw_index"
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+trace.set_tracer_provider(TracerProvider())
+
+index_counter = Counter("index_operations", "Number of index operations")
+
+jaeger_exporter = JaegerExporter(
+    agent_host_name="jaeger",
+    agent_port=6831,
+)
+
+trace.get_tracer_provider().add_span_processor(BatchSpanProcessor(jaeger_exporter))
+
+tracer = trace.get_tracer(__name__)
+
 
 async def github_request(method: str, url: str, headers: dict) -> List[dict]:
-    async with httpx.AsyncClient() as client:
-        response = await client.request(method, url, headers=headers)
-
-    if response.status_code == 200:
-        return response.json()
-    else:
-        print(f"Error: {response.status_code} - {response.text}")
-        return []
+    with tracer.start_as_current_span("github_request") as span:
+        span.set_attribute("http.method", method)
+        span.set_attribute("http.url", url)
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.request(method, url, headers=headers)
+            if response.status_code == 200:
+                logger.info(
+                    f"Successful {method} request to {url}",
+                    extra={"url": url, "method": method},
+                )
+                return response.json()
+            else:
+                logger.error(
+                    f"Error during {method} request to {url}: {response.status_code} - {response.text}",
+                    extra={
+                        "url": url,
+                        "method": method,
+                        "status_code": response.status_code,
+                        "response_text": response.text,
+                    },
+                )
+                return []
+        except Exception as e:
+            logger.exception(
+                f"Exception during {method} request to {url}: {e}",
+                extra={"url": url, "method": method},
+            )
+            return []
 
 
 async def get_github_repositories(username: str) -> List[dict]:
@@ -98,7 +147,7 @@ def search_similar_repositories(
     try:
         response = client.search(index=index_name, body=query_body)
     except RequestError as e:
-        print("Error:", e.info)
+        logger.error("Error:", e.info)
         raise e
 
     return response["hits"]["hits"]
@@ -133,6 +182,8 @@ def index_repositories(
 
         repo_ids.append(repo_id)
         embeddings.append(embedding)
+
+        index_counter.inc()
 
     return repo_ids, embeddings
 
@@ -181,24 +232,27 @@ def retrieve_all_repositories(client, index_name):
     try:
         response = client.search(index=index_name, body=query_body)
     except RequestError as e:
-        print("Error:", e.info)
+        logger.error("Error:", e.info)
         raise e
 
     return response["hits"]["hits"]
 
 
 app = FastAPI()
+FastAPIInstrumentor.instrument_app(app)
+Instrumentator().instrument(app).expose(app)
 
-GITHUB_USERNAME = os.environ["GITHUB_USERNAME"]
-GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
-ELASTICSEARCH_HOST = os.environ["ELASTICSEARCH_HOST"]
-
-INDEX_NAME = "repositories"
-HNSW_INDEX_NAME = "hnsw_index"
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 client = OpenSearch(
-    hosts=[{"host": "opensearch-node", "port": 9200}],
+    hosts=[{"host": "localhost", "port": 9200}],
     http_compress=True,
     use_ssl=False,
     verify_certs=False,
@@ -206,7 +260,7 @@ client = OpenSearch(
     ssl_show_warn=False,
 )
 
-model = SentenceTransformer("sentence-transformers/paraphrase-MiniLM-L6-v2")
+model = SentenceTransformer("flax-sentence-embeddings/all_datasets_v4_MiniLM-L6")
 
 
 class SearchRequest(BaseModel):
@@ -229,24 +283,36 @@ class Repository(BaseModel):
 
 @app.post("/search", response_model=List[SearchResult])
 async def search_repositories(search_request: SearchRequest) -> List[SearchResult]:
-    text = search_request.text
+    with tracer.start_as_current_span("search_repositories") as span:
+        span.set_attribute("search.text", search_request.text)
+        span.set_attribute("search.top_k", search_request.top_k)
+        try:
+            text = search_request.text
 
-    embedding = model.encode([text], convert_to_tensor=True)[0].cpu().numpy().tolist()
-    search_result = search_similar_repositories(
-        client, embedding, "repositories", search_request.top_k
-    )
+            embedding = (
+                model.encode([text], convert_to_tensor=True)[0].cpu().numpy().tolist()
+            )
+            search_result = search_similar_repositories(
+                client, embedding, "repositories", search_request.top_k
+            )
 
-    formatted_results = [
-        SearchResult(
-            repository_name=hit["_source"]["repository_name"],
-            description=hit["_source"]["description"],
-            tags=hit["_source"]["tags"],
-            score=hit["_score"],
-        )
-        for hit in search_result
-    ]
+            formatted_results = [
+                SearchResult(
+                    repository_name=hit["_source"]["repository_name"],
+                    description=hit["_source"]["description"],
+                    tags=hit["_source"]["tags"],
+                    score=hit["_score"],
+                )
+                for hit in search_result
+            ]
 
-    return formatted_results
+            return formatted_results
+        except Exception as e:
+            logger.exception(
+                f"Exception during search for {search_request.text}: {e}",
+                extra={"search_text": search_request.text},
+            )
+            return []
 
 
 @app.get("/repositories", response_model=List[Repository])
@@ -267,15 +333,25 @@ async def get_all_repositories() -> List[Repository]:
 
 @app.post("/index_repositories/")
 async def index_repositories_handler() -> dict:
-    delete_opensearch_index(client, INDEX_NAME)
-    create_opensearch_index(client, INDEX_NAME)
+    with tracer.start_as_current_span("index_repositories_handler") as span:
+        span.set_attribute("index_name", INDEX_NAME)
+        try:
+            delete_opensearch_index(client, INDEX_NAME)
+            create_opensearch_index(client, INDEX_NAME)
 
-    repositories = await get_github_repositories(GITHUB_USERNAME)
+            repositories = await get_github_repositories(GITHUB_USERNAME)
 
-    repos_ids, embeddings = index_repositories(client, repositories, model)
+            repos_ids, embeddings = index_repositories(client, repositories, model)
 
-    hnsw_index = create_hnsw_index(dim=len(embeddings[0]))
-    add_embeddings_to_hnsw_index(hnsw_index, embeddings, repos_ids)
-    save_hnsw_index(hnsw_index, HNSW_INDEX_NAME)
+            hnsw_index = create_hnsw_index(dim=len(embeddings[0]))
+            add_embeddings_to_hnsw_index(hnsw_index, embeddings, repos_ids)
+            save_hnsw_index(hnsw_index, HNSW_INDEX_NAME)
 
-    return {"message": f"Indexed {len(repositories)} repositories."}
+            logger.info(
+                f"Indexed {len(repositories)} repositories.",
+                {"repositories_indexed": len(repositories)},
+            )
+            return {"message": f"Indexed {len(repositories)} repositories."}
+        except Exception as e:
+            logger.exception(f"Exception during indexing: {e}")
+            return {"message": "Error occurred during indexing."}
